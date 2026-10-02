@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned, so a forge release cannot change the build under the tests.
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - name: format
+        run: forge fmt --check
+      - name: test
+        run: forge test
+      - name: coverage gate (100% lines, statements, branches, functions)
+        run: ./bash/check-coverage.sh

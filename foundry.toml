@@ -1,0 +1,17 @@
+# lattice-std: a library with no dependencies — consumers import src/Lattice.sol
+# and nothing else — so this file configures only its own tests and the
+# differential script. `.lattice` is read-write here because the tests write the
+# environment fixture they then read; a consumer grants `read` on the same path.
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = []
+solc_version = "0.8.34"
+evm_version = "cancun"
+optimizer = false
+fs_permissions = [{ access = "read-write", path = "./.lattice" }]
+
+[fmt]
+line_length = 120
