@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0;
+pragma solidity >=0.8.12 <0.9.0;
 
 /// lattice-std: the structs and encoders a governance plan or deploy script returns and builds.
 ///
