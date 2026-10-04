@@ -4,9 +4,10 @@ A release's tests are forge tests in its folder — `script/releases/<name>/test
 the manifest's `verify` steps in `test` mode. Lattice runs them when the machine reaches the step:
 on a disposable fork under `lattice test`, on the chain itself under `lattice run`, each time with
 the book materialized at `.lattice/env.json` so the test sees what the release has produced so far.
-A suite placed before the deploy step checks the state the release starts from; one after the
-deploy sees the staged implementation; one after the execute sees the proxy moved. The same files
-run in both commands, unchanged.
+Three suites, by position: `PostDeploy`, after the deploy step, sees the staged implementation;
+`PreUpgrade`, before the proposal, asks whether the release will execute as expected by applying
+its own plans on the test's fork; `PostUpgrade`, after the last governance step, sees the proxy
+moved and the behaviour the release exists for. The same files run in both commands, unchanged.
 
 `LatticeTest` is the shared ground: readers and helpers, no assertions. Inherit it beside forge-std's
 `Test` (or any assertion library — its cheatcodes are reached through `cheats`, never `vm`, so there
@@ -30,7 +31,9 @@ abstract contract ReporterTestBase is Test, LatticeTest {
 
 ## The checklist, and the helper for each line
 
-What a governance simulation at Polymarket checks (safe-sim's convention), mapped to `LatticeTest`:
+What a governance simulation at Polymarket checks (safe-sim's convention), mapped to `LatticeTest`.
+*Before* is `PostDeploy` and the start of `PreUpgrade`'s rehearsal; *after* is the end of that
+rehearsal and `PostUpgrade`:
 
 | Check | Before | After | Helper |
 |---|---|---|---|
@@ -55,8 +58,8 @@ or address it was built from (`Env.addr_(...)`, `Env.addr(...)`).
 
 The checklist above proves an upgrade was mechanically right. It does not prove the release does what it
 exists for. A release's suites must also cover the behaviour of the code being deployed or upgraded —
-`Functional.t.sol`, run by a `verify` step in `test` mode after the live bytecode check (or after the
-post-deploy checks for a new deployment):
+functional tests in `PostUpgrade`, after the structural checks (in `PostDeploy` for a new deployment),
+so the one step after the last change runs both:
 
 - **The changed behaviour, end to end, through the live proxies.** A reporter module moved to a new
   DataStore: a candle resolution that reads the price from that store through `report()` and
@@ -77,14 +80,14 @@ How, on a fork:
 - Keep it to the flows the release touches. The repository's unit tests do not substitute — they deploy
   fresh contracts and never see the proxies — but their helpers (order builders, request encoders) may
   be imported.
-- A release with no behavioural change (a redeploy that reads the same inputs) may skip the suite, and
-  says so in its README.
+- A release with no behavioural change (a redeploy that reads the same inputs) may skip the functional
+  tests, and says so in its README.
 
 ## Applying a plan yourself
 
 Under `lattice test` the machine applies the plan for real and the tests only assert. A test that
-wants to apply a plan itself — a safe-sim-style simulation, or a pre-check asking "what will this
-do" — has the helpers safe-sim's base had. They `prank` the authority, so the Safe's code does not
+wants to apply a plan itself — `PreUpgrade`, the safe-sim-style rehearsal asking "what will this
+do" before the proposal is filed — has the helpers safe-sim's base had. They `prank` the authority, so the Safe's code does not
 run: they say what the operation does, not whether the Safe would send it; that half is Lattice's.
 
 | Helper | Does |
