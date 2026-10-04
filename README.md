@@ -29,7 +29,7 @@ fs_permissions = [{ access = "read", path = "./.lattice" }]
 | `Call` | `{to, value, data}`: the unit of a governance plan. A plan's `build()` returns `Call[]`. |
 | `Deployment` | `{name, addr}`: what a deploy script's entry point returns, naming each address for the address book. |
 | `EnvVar` | `{key, value}`: one scalar param, for a step that updates params. |
-| `Env` | Reads `.lattice/env.json`: `addr(name)`, `implementation(name)`, `staged(name)` (an implementation deployed but not yet live, which is what an upgrade plan proposes), and `str` / `uint256_` / `bool_` for params. |
+| `Env` | Reads `.lattice/env.json`: `addr(name)`, `implementation(name)`, `staged(name)` (an implementation deployed but not yet live, which is what an upgrade plan proposes), `has(name)` and `hasStaged(name)`; `str` / `uint256_` / `bool_` / `addr_` for params; `chainId()`; and the governing account, `authority()`, with the owner set and threshold the book expects of a Safe, `authorityOwners()` and `authorityThreshold()` (empty and zero when none is recorded). What a release's pre- and post-checks read. |
 | `Erc7821`, `Timelock`, `MultiSend` | The encoders for Solady Timelock batches and Safe `MultiSendCallOnly`. |
 
 ```solidity

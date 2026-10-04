@@ -30,7 +30,11 @@ struct EnvVar {
 interface LatticeVm {
     function readFile(string calldata path) external view returns (string memory);
     function parseJsonAddress(string calldata json, string calldata key) external pure returns (address);
+    function parseJsonAddressArray(string calldata json, string calldata key) external pure returns (address[] memory);
+    function parseJsonUint(string calldata json, string calldata key) external pure returns (uint256);
     function parseJsonString(string calldata json, string calldata key) external pure returns (string memory);
+    function keyExistsJson(string calldata json, string calldata key) external view returns (bool);
+    function parseAddress(string calldata value) external pure returns (address);
     function parseUint(string calldata value) external pure returns (uint256);
     function parseBool(string calldata value) external pure returns (bool);
 }
@@ -123,5 +127,48 @@ library Env {
 
     function bool_(string memory key) internal view returns (bool) {
         return vm.parseBool(str(key));
+    }
+
+    /// A param that holds an address.
+    function addr_(string memory key) internal view returns (address) {
+        return vm.parseAddress(str(key));
+    }
+
+    /// The chain the book describes: `chainId`.
+    function chainId() internal view returns (uint256) {
+        return vm.parseJsonUint(vm.readFile(PATH), ".chainId");
+    }
+
+    /// The account that governs the environment: `authority.address` — the Protocol Safe, or the
+    /// EOA on a testnet.
+    function authority() internal view returns (address) {
+        return vm.parseJsonAddress(vm.readFile(PATH), ".authority.address");
+    }
+
+    /// The owner set the book expects of a Safe authority: `authority.owners`. Empty when the book
+    /// records none — an EOA, or a Safe nobody has recorded yet.
+    function authorityOwners() internal view returns (address[] memory) {
+        string memory book = vm.readFile(PATH);
+        if (!vm.keyExistsJson(book, ".authority.owners")) return new address[](0);
+        return vm.parseJsonAddressArray(book, ".authority.owners");
+    }
+
+    /// The threshold the book expects of a Safe authority: `authority.threshold`, zero when none
+    /// is recorded.
+    function authorityThreshold() internal view returns (uint256) {
+        string memory book = vm.readFile(PATH);
+        if (!vm.keyExistsJson(book, ".authority.threshold")) return 0;
+        return vm.parseJsonUint(book, ".authority.threshold");
+    }
+
+    /// Whether the book names a contract.
+    function has(string memory name) internal view returns (bool) {
+        return vm.keyExistsJson(vm.readFile(PATH), string.concat(".contracts.", name));
+    }
+
+    /// Whether an implementation is staged behind a proxy or beacon — deployed by a release and
+    /// not yet live. A test placed before the deploy step expects none.
+    function hasStaged(string memory name) internal view returns (bool) {
+        return vm.keyExistsJson(vm.readFile(PATH), string.concat(".contracts.", name, ".implementation.staged"));
     }
 }

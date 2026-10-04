@@ -133,7 +133,7 @@ contract LatticeTest {
         vm.createDir(".lattice", true);
         vm.writeFile(
             ".lattice/env.json",
-            '{"id":"polygon-mainnet","chainId":137,"contracts":{"exchange":{"address":"0xe3333700cA9d93003F00f0F71f8515005F6c00Aa","kind":"proxy","route":"owner","implementation":{"address":"0x641b40ec414a076b9e79E703Fc7BF4EBEC248Bb7","staged":{"address":"0x7345C6842b244926125ed4054905cAc49620B5dc"}}}},"params":{"feeRecipient":"0x115F48DC2A731aA16251c6d6e1BEfC42f92Accc9","minDelay":"43200","paused":"false"}}'
+            '{"id":"polygon-mainnet","chainId":137,"authority":{"kind":"safe","address":"0x3dcE0a29139A851Da1dFCa56Af8e8a6440b4D952","threshold":3,"owners":["0x00447A08bf275b7FB3D5d832387a54Be1090d281","0x3B0dfCe5C3A1e2D5bB1c2D8E5f6A7B8C9d0E1f2A"]},"contracts":{"exchange":{"address":"0xe3333700cA9d93003F00f0F71f8515005F6c00Aa","kind":"proxy","route":"owner","implementation":{"address":"0x641b40ec414a076b9e79E703Fc7BF4EBEC248Bb7","staged":{"address":"0x7345C6842b244926125ed4054905cAc49620B5dc"}}}},"params":{"feeRecipient":"0x115F48DC2A731aA16251c6d6e1BEfC42f92Accc9","minDelay":"43200","paused":"false"}}'
         );
         require(Env.addr("exchange") == 0xe3333700cA9d93003F00f0F71f8515005F6c00Aa, "anchor");
         require(Env.implementation("exchange") == 0x641b40ec414a076b9e79E703Fc7BF4EBEC248Bb7, "implementation");
@@ -143,6 +143,28 @@ contract LatticeTest {
         );
         require(Env.uint256_("minDelay") == 43200, "uint256");
         require(!Env.bool_("paused"), "bool");
+        require(Env.addr_("feeRecipient") == 0x115F48DC2A731aA16251c6d6e1BEfC42f92Accc9, "addr_");
+        require(Env.chainId() == 137, "chainId");
+        require(Env.authority() == 0x3dcE0a29139A851Da1dFCa56Af8e8a6440b4D952, "authority");
+        require(Env.authorityThreshold() == 3, "threshold");
+        address[] memory owners = Env.authorityOwners();
+        require(owners.length == 2 && owners[0] == 0x00447A08bf275b7FB3D5d832387a54Be1090d281, "owners");
+        require(Env.has("exchange") && !Env.has("router"), "has");
+        require(Env.hasStaged("exchange"), "hasStaged");
+
+        // A testnet's book, written over the first (forge runs test functions in parallel, and
+        // Env reads one fixed path, so the two books share one test): an EOA authority with no
+        // owner set recorded, and a proxy with nothing staged behind it — what a test placed
+        // before a deploy step sees.
+        vm.writeFile(
+            ".lattice/env.json",
+            '{"id":"polygon-amoy","chainId":80002,"authority":{"kind":"eoa","address":"0x00447A08bf275b7FB3D5d832387a54Be1090d281"},"contracts":{"exchange":{"address":"0xe3333700cA9d93003F00f0F71f8515005F6c00Aa","kind":"proxy","route":"owner","implementation":{"address":"0x641b40ec414a076b9e79E703Fc7BF4EBEC248Bb7"}}},"params":{}}'
+        );
+        require(Env.authority() == 0x00447A08bf275b7FB3D5d832387a54Be1090d281, "authority");
+        require(Env.authorityOwners().length == 0, "owners");
+        require(Env.authorityThreshold() == 0, "threshold");
+        require(Env.has("exchange") && !Env.hasStaged("exchange"), "staged");
+        require(Env.chainId() == 80002, "chainId");
     }
 
     function test_structsHaveTheirShape() public pure {
