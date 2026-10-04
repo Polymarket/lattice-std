@@ -36,6 +36,9 @@ interface LatticeVm {
     function keyExistsJson(string calldata json, string calldata key) external view returns (bool);
     function parseAddress(string calldata value) external pure returns (address);
     function parseUint(string calldata value) external pure returns (uint256);
+    function parseInt(string calldata value) external pure returns (int256);
+    function parseBytes32(string calldata value) external pure returns (bytes32);
+    function parseBytes(string calldata value) external pure returns (bytes memory);
     function parseBool(string calldata value) external pure returns (bool);
 }
 
@@ -132,6 +135,46 @@ library Env {
     /// A param that holds an address.
     function addr_(string memory key) internal view returns (address) {
         return vm.parseAddress(str(key));
+    }
+
+    function int256_(string memory key) internal view returns (int256) {
+        return vm.parseInt(str(key));
+    }
+
+    function bytes32_(string memory key) internal view returns (bytes32) {
+        return vm.parseBytes32(str(key));
+    }
+
+    function bytes_(string memory key) internal view returns (bytes memory) {
+        return vm.parseBytes(str(key));
+    }
+
+    /// Narrow unsigned params, range-checked: `uint32(Env.uint256_(key))` would truncate silently,
+    /// and a protocol struct's `uint16 resultLength` or `uint32 livenessWindow` deserves a revert.
+    function uint8_(string memory key) internal view returns (uint8) {
+        return uint8(narrow(key, type(uint8).max));
+    }
+
+    function uint16_(string memory key) internal view returns (uint16) {
+        return uint16(narrow(key, type(uint16).max));
+    }
+
+    function uint32_(string memory key) internal view returns (uint32) {
+        return uint32(narrow(key, type(uint32).max));
+    }
+
+    function uint64_(string memory key) internal view returns (uint64) {
+        return uint64(narrow(key, type(uint64).max));
+    }
+
+    function uint128_(string memory key) internal view returns (uint128) {
+        return uint128(narrow(key, type(uint128).max));
+    }
+
+    function narrow(string memory key, uint256 max) private view returns (uint256) {
+        uint256 v = uint256_(key);
+        require(v <= max, string.concat("lattice-std: param ", key, " does not fit its type"));
+        return v;
     }
 
     /// The chain the book describes: `chainId`.
