@@ -51,6 +51,35 @@ Deploy checks use the same readers against the book's expectations: `Env.staged(
 `implementationSane(Env.staged(name)) == ""`, each constructor argument read back equals the param
 or address it was built from (`Env.addr_(...)`, `Env.addr(...)`).
 
+## Functional checks: the behaviour after the change
+
+The checklist above proves an upgrade was mechanically right. It does not prove the release does what it
+exists for. A release's suites must also cover the behaviour of the code being deployed or upgraded —
+`Functional.t.sol`, run by a `verify` step in `test` mode after the live bytecode check (or after the
+post-deploy checks for a new deployment):
+
+- **The changed behaviour, end to end, through the live proxies.** A reporter module moved to a new
+  DataStore: a candle resolution that reads the price from that store through `report()` and
+  `finalize()`. A new exchange build: an order that only the new build accepts, matched and settled.
+- **One happy path of what must keep working**, so a regression shows up next to the feature.
+- **Any failure path the change moved**: what used to revert and now passes, or the reverse.
+
+How, on a fork:
+
+- The test runs on forge's fork of whatever chain Lattice points it at — the sandbox under
+  `lattice test`, the real chain under `lattice run`. Nothing it does reaches that chain. So it may
+  `prank` the role holders (`callAs(Env.authority(), …)`, `cheats.prank(operator)`) and write the inputs
+  the flow needs — an observation into the store as its writer, an order signed by a made-up maker —
+  instead of waiting for live data. That is how safe-sim's simulations drive a flow, and it is what
+  makes the same file runnable against mainnet.
+- Every address and role holder from `Env` (`addr`, `addr_`, `authority`); feed ids, pairs and amounts
+  as constants the test explains.
+- Keep it to the flows the release touches. The repository's unit tests do not substitute — they deploy
+  fresh contracts and never see the proxies — but their helpers (order builders, request encoders) may
+  be imported.
+- A release with no behavioural change (a redeploy that reads the same inputs) may skip the suite, and
+  says so in its README.
+
 ## Applying a plan yourself
 
 Under `lattice test` the machine applies the plan for real and the tests only assert. A test that
