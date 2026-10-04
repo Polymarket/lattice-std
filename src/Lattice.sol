@@ -30,8 +30,15 @@ struct EnvVar {
 interface LatticeVm {
     function readFile(string calldata path) external view returns (string memory);
     function parseJsonAddress(string calldata json, string calldata key) external pure returns (address);
+    function parseJsonAddressArray(string calldata json, string calldata key) external pure returns (address[] memory);
+    function parseJsonUint(string calldata json, string calldata key) external pure returns (uint256);
     function parseJsonString(string calldata json, string calldata key) external pure returns (string memory);
+    function keyExistsJson(string calldata json, string calldata key) external view returns (bool);
+    function parseAddress(string calldata value) external pure returns (address);
     function parseUint(string calldata value) external pure returns (uint256);
+    function parseInt(string calldata value) external pure returns (int256);
+    function parseBytes32(string calldata value) external pure returns (bytes32);
+    function parseBytes(string calldata value) external pure returns (bytes memory);
     function parseBool(string calldata value) external pure returns (bool);
 }
 
@@ -123,5 +130,88 @@ library Env {
 
     function bool_(string memory key) internal view returns (bool) {
         return vm.parseBool(str(key));
+    }
+
+    /// A param that holds an address.
+    function addr_(string memory key) internal view returns (address) {
+        return vm.parseAddress(str(key));
+    }
+
+    function int256_(string memory key) internal view returns (int256) {
+        return vm.parseInt(str(key));
+    }
+
+    function bytes32_(string memory key) internal view returns (bytes32) {
+        return vm.parseBytes32(str(key));
+    }
+
+    function bytes_(string memory key) internal view returns (bytes memory) {
+        return vm.parseBytes(str(key));
+    }
+
+    /// Narrow unsigned params, range-checked: `uint32(Env.uint256_(key))` would truncate silently,
+    /// and a protocol struct's `uint16 resultLength` or `uint32 livenessWindow` deserves a revert.
+    function uint8_(string memory key) internal view returns (uint8) {
+        return uint8(narrow(key, type(uint8).max));
+    }
+
+    function uint16_(string memory key) internal view returns (uint16) {
+        return uint16(narrow(key, type(uint16).max));
+    }
+
+    function uint32_(string memory key) internal view returns (uint32) {
+        return uint32(narrow(key, type(uint32).max));
+    }
+
+    function uint64_(string memory key) internal view returns (uint64) {
+        return uint64(narrow(key, type(uint64).max));
+    }
+
+    function uint128_(string memory key) internal view returns (uint128) {
+        return uint128(narrow(key, type(uint128).max));
+    }
+
+    function narrow(string memory key, uint256 max) private view returns (uint256) {
+        uint256 v = uint256_(key);
+        require(v <= max, string.concat("lattice-std: param ", key, " does not fit its type"));
+        return v;
+    }
+
+    /// The chain the book describes: `chainId`.
+    function chainId() internal view returns (uint256) {
+        return vm.parseJsonUint(vm.readFile(PATH), ".chainId");
+    }
+
+    /// The account that governs the environment: `authority.address` — the Protocol Safe, or the
+    /// EOA on a testnet.
+    function authority() internal view returns (address) {
+        return vm.parseJsonAddress(vm.readFile(PATH), ".authority.address");
+    }
+
+    /// The owner set the book expects of a Safe authority: `authority.owners`. Empty when the book
+    /// records none — an EOA, or a Safe nobody has recorded yet.
+    function authorityOwners() internal view returns (address[] memory) {
+        string memory book = vm.readFile(PATH);
+        if (!vm.keyExistsJson(book, ".authority.owners")) return new address[](0);
+        return vm.parseJsonAddressArray(book, ".authority.owners");
+    }
+
+    /// The threshold the book expects of a Safe authority: `authority.threshold`, zero when none
+    /// is recorded.
+    function authorityThreshold() internal view returns (uint256) {
+        string memory book = vm.readFile(PATH);
+        if (!vm.keyExistsJson(book, ".authority.threshold")) return 0;
+        return vm.parseJsonUint(book, ".authority.threshold");
+    }
+
+    /// Whether the book names a contract.
+    function has(string memory name) internal view returns (bool) {
+        return vm.keyExistsJson(vm.readFile(PATH), string.concat(".contracts.", name));
+    }
+
+    /// Whether an implementation is staged behind a proxy or beacon — deployed by a release and
+    /// not yet live. A test placed before the deploy step expects none.
+    function hasStaged(string memory name) internal view returns (bool) {
+        return vm.keyExistsJson(vm.readFile(PATH), string.concat(".contracts.", name, ".implementation.staged"));
     }
 }
