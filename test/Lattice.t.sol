@@ -233,6 +233,7 @@ contract LatticeStdTest {
                 == 0x3dcE0a29139A851Da1dFCa56Af8e8a6440b4D952,
             "apply sender"
         );
+        require(base.state(bytes32(0)) == 1, "operationState reads the book's timelock");
 
         // A testnet's book, written over the first (forge runs test functions in parallel, and
         // Env reads one fixed path, so the two books share one test): an EOA authority with no

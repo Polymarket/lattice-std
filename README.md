@@ -22,6 +22,8 @@ Give forge read access to the environment written before every run:
 fs_permissions = [{ access = "read", path = "./.lattice" }]
 ```
 
+Documentation — how and when to use each piece — is under [`docs/`](./docs/README.md).
+
 ## What it provides
 
 | | |
