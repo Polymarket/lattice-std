@@ -18,5 +18,14 @@ jobs:
         run: forge fmt --check
       - name: test
         run: forge test
+      # The declared floor is a promise to every consumer that pins to it, and
+      # nothing else in CI compiles at it: the pinned toolchain always builds
+      # with a far newer solc.
+      - name: pragma floor compiles
+        run: |
+          FLOOR=$(sed -n 's/^pragma solidity >=\([0-9.]*\).*/\1/p' src/Lattice.sol)
+          test -n "$FLOOR" || { echo "no >= floor declared in src/Lattice.sol"; exit 1; }
+          echo "src/Lattice.sol declares a floor of $FLOOR"
+          forge build --use "$FLOOR"
       - name: coverage gate (100% lines, statements, branches, functions)
         run: ./bash/check-coverage.sh

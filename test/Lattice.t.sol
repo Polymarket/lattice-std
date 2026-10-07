@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.12;
 
 import {Call, Deployment, EnvVar, Erc7821, Timelock, MultiSend, Env} from "../src/Lattice.sol";
 import {TestBaseHarness, FakeTimelock, FakeTarget, FakeGoverned} from "./LatticeTest.t.sol";
