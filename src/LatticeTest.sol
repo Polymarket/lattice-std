@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0;
+pragma solidity >=0.8.12 <0.9.0;
 
 import {Call, Env, Erc7821, Timelock} from "./Lattice.sol";
 
