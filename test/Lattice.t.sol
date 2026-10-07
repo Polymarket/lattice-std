@@ -29,6 +29,18 @@ contract Harness {
         return MultiSend.pack(calls);
     }
 
+    function opId(bytes32 mode, bytes memory d) external pure returns (bytes32) {
+        return Erc7821.opId(mode, d);
+    }
+
+    function propose(bytes32 mode, bytes memory d, uint256 delay) external pure returns (bytes memory) {
+        return Timelock.propose(mode, d, delay);
+    }
+
+    function execute(bytes32 mode, bytes memory d) external pure returns (bytes memory) {
+        return Timelock.execute(mode, d);
+    }
+
     function uint8_(string memory key) external view returns (uint8) {
         return Env.uint8_(key);
     }
@@ -150,6 +162,37 @@ contract LatticeStdTest {
         harness.encode(none, bytes32(0), bytes32(0));
         vm.expectRevert(bytes("lattice-std: empty plan"));
         harness.pack(none);
+    }
+
+    function test_refusesACallToTheZeroAddress() public {
+        // A default-initialized slot: the plan sized for three calls and filled two.
+        Call[] memory calls = new Call[](3);
+        calls[0] = Call({to: A, value: 0, data: ""});
+        calls[1] = Call({to: B, value: 0, data: hex"deadbeef01"});
+        vm.expectRevert(bytes("lattice-std: call to the zero address"));
+        harness.encode(calls);
+        vm.expectRevert(bytes("lattice-std: call to the zero address"));
+        harness.encode(calls, bytes32(0), bytes32(0));
+        vm.expectRevert(bytes("lattice-std: call to the zero address"));
+        harness.pack(calls);
+    }
+
+    function test_refusesOpDataUnderThePlainMode() public {
+        // The predecessor would be ignored on chain while the id, which hashes it, looks right.
+        bytes memory d = Erc7821.encode(two(), bytes32(uint256(1)), bytes32(0));
+        vm.expectRevert(bytes("lattice-std: opData needs MODE_OPDATA"));
+        harness.opId(Erc7821.MODE, d);
+        vm.expectRevert(bytes("lattice-std: opData needs MODE_OPDATA"));
+        harness.propose(Erc7821.MODE, d, 43200);
+        vm.expectRevert(bytes("lattice-std: opData needs MODE_OPDATA"));
+        harness.execute(Erc7821.MODE, d);
+        // Every other pairing stands: plain under either mode, opData under MODE_OPDATA, and
+        // executionData too short to carry a head word.
+        bytes memory plain = Erc7821.encode(two());
+        harness.opId(Erc7821.MODE, plain);
+        harness.opId(Erc7821.MODE_OPDATA, plain);
+        harness.opId(Erc7821.MODE_OPDATA, d);
+        harness.opId(Erc7821.MODE, "");
     }
 
     function test_envReadsTheMaterializedBook() public {
