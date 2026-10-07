@@ -42,6 +42,16 @@ interface LatticeVm {
     function parseBool(string calldata value) external pure returns (bool);
 }
 
+/// What every encoder requires of a plan: at least one call, and no call to the zero address.
+/// ERC-7821 and Safe 1.4's MultiSendCallOnly both rewrite a zero target to `address(this)` — the
+/// timelock or the Safe itself — so an unset address would retarget governance at governance.
+function checkPlan(Call[] memory calls) pure {
+    require(calls.length != 0, "lattice-std: empty plan");
+    for (uint256 i = 0; i < calls.length; i++) {
+        require(calls[i].to != address(0), "lattice-std: call to the zero address");
+    }
+}
+
 /// ERC-7821 batch execution, as the Solady Timelock consumes it.
 library Erc7821 {
     /// `Call[]` alone.
@@ -51,29 +61,44 @@ library Erc7821 {
 
     /// executionData without opData: abi.encode(calls). An empty plan is refused.
     function encode(Call[] memory calls) internal pure returns (bytes memory) {
-        require(calls.length != 0, "lattice-std: empty plan");
+        checkPlan(calls);
         return abi.encode(calls);
     }
 
     /// executionData with opData: abi.encode(calls, abi.encode(predecessor, salt)).
     function encode(Call[] memory calls, bytes32 predecessor, bytes32 salt) internal pure returns (bytes memory) {
-        require(calls.length != 0, "lattice-std: empty plan");
+        checkPlan(calls);
         return abi.encode(calls, abi.encode(predecessor, salt));
     }
 
     /// The timelock's operation id: keccak256(abi.encode(mode, keccak256(executionData))).
     function opId(bytes32 mode, bytes memory executionData) internal pure returns (bytes32) {
+        checkMode(mode, executionData);
         return keccak256(abi.encode(mode, keccak256(executionData)));
+    }
+
+    /// Refuses opData under `MODE`. ERC-7821 reads opData only in `MODE_OPDATA`, so the timelock
+    /// would skip the predecessor check while the id, which hashes the opData, still looks right.
+    /// executionData carries opData when its first head word, the offset of `calls`, is 0x40.
+    function checkMode(bytes32 mode, bytes memory executionData) internal pure {
+        if (mode != MODE || executionData.length < 0x20) return;
+        uint256 head;
+        assembly {
+            head := mload(add(executionData, 0x20))
+        }
+        require(head < 0x40, "lattice-std: opData needs MODE_OPDATA");
     }
 }
 
 /// Calldata for the Solady Timelock's governance entry points.
 library Timelock {
     function propose(bytes32 mode, bytes memory d, uint256 delay) internal pure returns (bytes memory) {
+        Erc7821.checkMode(mode, d);
         return abi.encodeWithSignature("propose(bytes32,bytes,uint256)", mode, d, delay);
     }
 
     function execute(bytes32 mode, bytes memory d) internal pure returns (bytes memory) {
+        Erc7821.checkMode(mode, d);
         return abi.encodeWithSignature("execute(bytes32,bytes)", mode, d);
     }
 
@@ -88,7 +113,7 @@ library MultiSend {
     /// Per call, tightly packed: uint8 operation (always 0), address to, uint256 value,
     /// uint256 data.length, bytes data.
     function pack(Call[] memory calls) internal pure returns (bytes memory packed) {
-        require(calls.length != 0, "lattice-std: empty plan");
+        checkPlan(calls);
         for (uint256 i = 0; i < calls.length; i++) {
             packed =
                 abi.encodePacked(packed, uint8(0), calls[i].to, calls[i].value, calls[i].data.length, calls[i].data);
