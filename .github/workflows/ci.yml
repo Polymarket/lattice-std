@@ -5,15 +5,29 @@ on:
     branches: [main]
   pull_request:
 
+# Grant only the permissions each job needs.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       # Pinned, so a forge release cannot change the build under the tests.
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
         with:
           version: v1.7.1
+          # These tests use local fixtures, so there is no RPC data to cache.
+          cache: false
       - name: format
         run: forge fmt --check
       - name: test
