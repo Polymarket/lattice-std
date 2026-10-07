@@ -42,16 +42,6 @@ interface LatticeVm {
     function parseBool(string calldata value) external pure returns (bool);
 }
 
-/// What every encoder requires of a plan: at least one call, and no call to the zero address.
-/// ERC-7821 and Safe 1.4's MultiSendCallOnly both rewrite a zero target to `address(this)` — the
-/// timelock or the Safe itself — so an unset address would retarget governance at governance.
-function checkPlan(Call[] memory calls) pure {
-    require(calls.length != 0, "lattice-std: empty plan");
-    for (uint256 i = 0; i < calls.length; i++) {
-        require(calls[i].to != address(0), "lattice-std: call to the zero address");
-    }
-}
-
 /// ERC-7821 batch execution, as the Solady Timelock consumes it.
 library Erc7821 {
     /// `Call[]` alone.
@@ -75,6 +65,17 @@ library Erc7821 {
     function opId(bytes32 mode, bytes memory executionData) internal pure returns (bytes32) {
         checkMode(mode, executionData);
         return keccak256(abi.encode(mode, keccak256(executionData)));
+    }
+
+    /// What every encoder requires of a plan: at least one call, and no call to the zero address.
+    /// ERC-7821 and Safe 1.4's MultiSendCallOnly both rewrite a zero target to `address(this)` — the
+    /// timelock or the Safe itself — so an unset address would retarget governance at governance.
+    /// A member of the library, so importing `Lattice.sol` brings no bare function name along.
+    function checkPlan(Call[] memory calls) internal pure {
+        require(calls.length != 0, "lattice-std: empty plan");
+        for (uint256 i = 0; i < calls.length; i++) {
+            require(calls[i].to != address(0), "lattice-std: call to the zero address");
+        }
     }
 
     /// Refuses opData under `MODE`. ERC-7821 reads opData only in `MODE_OPDATA`, so the timelock
@@ -113,7 +114,7 @@ library MultiSend {
     /// Per call, tightly packed: uint8 operation (always 0), address to, uint256 value,
     /// uint256 data.length, bytes data.
     function pack(Call[] memory calls) internal pure returns (bytes memory packed) {
-        checkPlan(calls);
+        Erc7821.checkPlan(calls);
         for (uint256 i = 0; i < calls.length; i++) {
             packed =
                 abi.encodePacked(packed, uint8(0), calls[i].to, calls[i].value, calls[i].data.length, calls[i].data);
