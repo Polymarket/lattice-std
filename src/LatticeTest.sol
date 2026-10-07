@@ -9,6 +9,9 @@ import {Call, Env, Erc7821, Timelock} from "./Lattice.sol";
 interface LatticeTestVm {
     function load(address target, bytes32 slot) external view returns (bytes32);
     function exists(string calldata path) external view returns (bool);
+    function readFile(string calldata path) external view returns (string memory);
+    function parseJsonUint(string calldata json, string calldata key) external pure returns (uint256);
+    function toString(uint256 value) external pure returns (string memory);
     function skip(bool skipTest, string calldata reason) external;
     function prank(address msgSender) external;
     function warp(uint256 newTimestamp) external;
@@ -67,15 +70,45 @@ abstract contract LatticeTest {
         return Env.PATH;
     }
 
-    /// Whether lattice materialized a book for this run. A plain `forge test` over a repository
-    /// has none.
+    /// Whether lattice materialized a book for this run: the file is there and it is for the chain
+    /// the test runs on. A plain `forge test` over a repository has no book — or has the book an
+    /// earlier lattice run left behind, with no fork under it, and then the chain id is forge's own
+    /// rather than the book's and the hooks would run against nothing.
     function materialized() internal view returns (bool) {
-        return cheats.exists(bookPath());
+        return bytes(notMaterializedBecause()).length == 0;
     }
 
-    /// Skips the test unless a book is materialized: these are step hooks, not unit tests.
+    /// Why the hooks should not run here — no book at the path, or a book for another chain — or
+    /// the empty string when a book is materialized for this chain.
+    function notMaterializedBecause() internal view returns (string memory) {
+        if (!cheats.exists(bookPath())) {
+            return string.concat("no book at ", bookPath(), ": run through lattice test or lattice run");
+        }
+        uint256 want = bookChainId();
+        if (want != block.chainid) {
+            return string.concat(
+                "the book at ",
+                bookPath(),
+                " is for chain ",
+                cheats.toString(want),
+                " and this run is on chain ",
+                cheats.toString(block.chainid),
+                ": run through lattice test or lattice run"
+            );
+        }
+        return "";
+    }
+
+    /// The chain the materialized book is for.
+    function bookChainId() internal view returns (uint256) {
+        return cheats.parseJsonUint(cheats.readFile(bookPath()), ".chainId");
+    }
+
+    /// Skips the test unless a book is materialized for this chain: these are step hooks, not unit
+    /// tests. The reason names which half is missing.
     function skipUnlessMaterialized() internal {
-        cheats.skip(!materialized(), "no .lattice/env.json: run through lattice test or lattice run");
+        string memory why = notMaterializedBecause();
+        cheats.skip(bytes(why).length != 0, why);
     }
 
     /// The timelock the book's governance goes through: its `timelock` entry.

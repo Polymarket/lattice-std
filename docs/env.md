@@ -28,7 +28,9 @@ returns them that way ([scripts.md](./scripts.md)).
 `Env` reverts when `.lattice/env.json` is missing — a script run outside Lattice, or a plain
 `forge test` over the repository. Scripts should not run outside Lattice at all. Tests inherit
 `LatticeTest` and call `skipUnlessMaterialized()` first ([testing.md](./testing.md)), so a
-repository's own `forge test` skips them rather than failing.
+repository's own `forge test` skips them rather than failing — also when a book from an earlier
+lattice run is still in the checkout, since the guard requires the book to be for the chain the test
+runs on.
 
 The repository's `foundry.toml` needs `fs_permissions = [{ access = "read", path = ".lattice/" }]`
 for any of this to work.
