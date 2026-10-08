@@ -7,6 +7,7 @@ import {TestBaseHarness, FakeTimelock, FakeTarget, FakeGoverned} from "./Lattice
 /// The two cheatcodes these tests need beyond the library's own, declared inline: lattice-std
 /// has no dependencies, and its tests keep it that way.
 interface Vm {
+    function chainId(uint256 newChainId) external;
     function createDir(string calldata path, bool recursive) external;
     function writeFile(string calldata path, string calldata data) external;
     function expectRevert(bytes calldata revertData) external;
@@ -235,6 +236,8 @@ contract LatticeStdTest {
 
         // The test base over the same book.
         TestBaseHarness base = new TestBaseHarness();
+        // The book is mainnet's, and a materialized book is one for the chain the test runs on.
+        vm.chainId(137);
         require(base.isMaterialized(), "materialized");
         base.skipUnless(); // a no-op with a book in place
         require(base.theTimelock() == 0x47EbFAC3353314C788B96CDCbf41daadfE03629C, "timelock");

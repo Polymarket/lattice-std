@@ -11,7 +11,10 @@ moved and the behaviour the release exists for. The same files run in both comma
 
 `LatticeTest` is the shared ground: readers and helpers, no assertions. Inherit it beside forge-std's
 `Test` (or any assertion library — its cheatcodes are reached through `cheats`, never `vm`, so there
-is no clash) and read every address through `Env`, never a literal.
+is no clash) and read every address through `Env`, never a literal. `materialized()` is true only
+when the book is there *and* is for the chain the test runs on (`chainId` in the book against
+`block.chainid`): lattice leaves `.lattice/env.json` in the checkout after a run, and without that
+check a later plain `forge test` would run the hooks against forge's own chain instead of skipping.
 
 ```solidity
 import { Test } from "@forge-std/src/Test.sol";
@@ -22,7 +25,7 @@ abstract contract ReporterTestBase is Test, LatticeTest {
     address internal proxy;
 
     function setUp() public virtual {
-        skipUnlessMaterialized();           // a plain `forge test` has no book: skip, do not fail
+        skipUnlessMaterialized();           // no book, or a book for another chain: skip, do not fail
         if (!materialized()) return;
         proxy = Env.addr("chainlinkReporterModule");
     }

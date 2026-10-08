@@ -9,6 +9,23 @@ import {LatticeTest} from "../src/LatticeTest.sol";
 interface TestVm {
     function store(address target, bytes32 slot, bytes32 value) external;
     function expectRevert(bytes calldata revertData) external;
+    function createDir(string calldata path, bool recursive) external;
+    function writeFile(string calldata path, string calldata data) external;
+    function toString(uint256 value) external pure returns (string memory);
+}
+
+/// A minimal book for one chain, written where a harness looks for it. Each harness has a file of
+/// its own, because forge runs test contracts in parallel.
+function writeBook(TestVm vm, string memory path, uint256 chainId) {
+    vm.createDir(".lattice", true);
+    vm.writeFile(
+        path,
+        string.concat(
+            '{"id":"t","chainId":',
+            vm.toString(chainId),
+            ',"authority":{"kind":"eoa","address":"0x00447A08bf275b7FB3D5d832387a54Be1090d281"},"contracts":{},"params":{}}'
+        )
+    );
 }
 
 /// Exposes the base's internal helpers over the default book path.
@@ -19,6 +36,14 @@ contract TestBaseHarness is LatticeTest {
 
     function skipUnless() external {
         skipUnlessMaterialized();
+    }
+
+    function bookChain() external view returns (uint256) {
+        return bookChainId();
+    }
+
+    function why() external view returns (string memory) {
+        return notMaterializedBecause();
     }
 
     function live(string memory name) external view returns (address) {
@@ -375,6 +400,53 @@ contract LatticeTestBaseTest {
         NoBookHarness none = new NoBookHarness();
         require(!none.isMaterialized(), "a missing book reads as materialized");
     }
+
+    function test_aBookIsMaterializedOnlyForItsChain() public {
+        writeBook(vm, ".lattice/this-chain.json", block.chainid);
+        writeBook(vm, ".lattice/other-chain.json", block.chainid + 1);
+        ThisChainHarness here = new ThisChainHarness();
+        require(here.isMaterialized(), "a book for this chain reads as not materialized");
+        require(bytes(here.why()).length == 0, "a book for this chain has a reason not to run");
+        OtherChainHarness other = new OtherChainHarness();
+        require(!other.isMaterialized(), "a book for another chain reads as materialized");
+        require(other.bookChain() == block.chainid + 1, "the book's chain id");
+        require(
+            same(
+                other.why(),
+                string.concat(
+                    "the book at .lattice/other-chain.json is for chain ",
+                    vm.toString(block.chainid + 1),
+                    " and this run is on chain ",
+                    vm.toString(block.chainid),
+                    ": run through lattice test or lattice run"
+                )
+            ),
+            "the reason for another chain's book"
+        );
+        require(
+            same(
+                new NoBookHarness().why(), "no book at .lattice/nowhere.json: run through lattice test or lattice run"
+            ),
+            "the reason for a missing book"
+        );
+    }
+
+    function same(string memory a, string memory b) internal pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
+    }
+}
+
+/// Harnesses over a book written for this chain and for another one.
+contract ThisChainHarness is TestBaseHarness {
+    function bookPath() internal pure override returns (string memory) {
+        return ".lattice/this-chain.json";
+    }
+}
+
+contract OtherChainHarness is TestBaseHarness {
+    function bookPath() internal pure override returns (string memory) {
+        return ".lattice/other-chain.json";
+    }
 }
 
 /// A test that is itself the base, over a missing book: forge allows `skip` only from the test's
@@ -388,5 +460,46 @@ contract LatticeTestSkipsWithoutABook is LatticeTest {
     function test_skipsWithoutABook() public {
         skipUnlessMaterialized();
         revert("reached past the skip");
+    }
+}
+
+/// The base over the book an earlier lattice run left behind, with no fork under it: the chain id
+/// is forge's own, not the book's, and the hook is skipped rather than run against nothing.
+contract LatticeTestSkipsOnAnotherChain is LatticeTest {
+    TestVm constant vm = TestVm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    function bookPath() internal pure override returns (string memory) {
+        return ".lattice/skip-other-chain.json";
+    }
+
+    function setUp() public {
+        writeBook(vm, bookPath(), block.chainid + 1);
+    }
+
+    function test_skipsWhenTheBookIsForAnotherChain() public {
+        skipUnlessMaterialized();
+        revert("reached past the skip");
+    }
+}
+
+/// The base over a book for the chain the test runs on: the hook runs.
+contract LatticeTestRunsOnTheBooksChain is LatticeTest {
+    TestVm constant vm = TestVm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    function bookPath() internal pure override returns (string memory) {
+        return ".lattice/run-this-chain.json";
+    }
+
+    function setUp() public {
+        writeBook(vm, bookPath(), block.chainid);
+    }
+
+    function test_runsWhenTheBookIsForThisChain() public view {
+        require(materialized(), "a book for this chain reads as not materialized");
+    }
+
+    function test_doesNotSkipWhenTheBookIsForThisChain() public {
+        skipUnlessMaterialized();
+        require(bookChainId() == block.chainid, "reached, and the book is this chain's");
     }
 }
