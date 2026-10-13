@@ -11,6 +11,9 @@ interface LatticeTestVm {
     function exists(string calldata path) external view returns (bool);
     function readFile(string calldata path) external view returns (string memory);
     function parseJsonUint(string calldata json, string calldata key) external pure returns (uint256);
+    function parseJsonAddress(string calldata json, string calldata key) external pure returns (address);
+    function parseJsonBool(string calldata json, string calldata key) external pure returns (bool);
+    function keyExistsJson(string calldata json, string calldata key) external view returns (bool);
     function toString(uint256 value) external pure returns (string memory);
     function skip(bool skipTest, string calldata reason) external;
     function prank(address msgSender) external;
@@ -136,6 +139,23 @@ abstract contract LatticeTest {
     function governedAsDeclared(address target) internal view returns (bool) {
         return IOwnableRolesView(target).owner() == timelock()
             && IOwnableRolesView(target).hasAllRoles(Env.authority(), SOLADY_ROLE_0);
+    }
+
+    /// Whether a contract the book names is governed as the book declares: owned by the
+    /// timelock and, where the book declares the authority holds its admin role
+    /// (`contracts.<name>.adminRole`), holding `_ROLE_0` there. A contract the book declares
+    /// owner-governed only — the Router grants no roles — passes on its owner alone, where the
+    /// address form above demands a role it was never meant to hold. Read off bookPath(), the
+    /// book this base checks, so a harness with a book of its own is judged by it.
+    function governedAsDeclared(string memory name) internal view returns (bool) {
+        string memory book = cheats.readFile(bookPath());
+        address target = cheats.parseJsonAddress(book, string.concat(".contracts.", name, ".address"));
+        if (IOwnableRolesView(target).owner() != cheats.parseJsonAddress(book, ".contracts.timelock.address")) {
+            return false;
+        }
+        string memory key = string.concat(".contracts.", name, ".adminRole");
+        if (!cheats.keyExistsJson(book, key) || !cheats.parseJsonBool(book, key)) return true;
+        return IOwnableRolesView(target).hasAllRoles(cheats.parseJsonAddress(book, ".authority.address"), SOLADY_ROLE_0);
     }
 
     /// Solady OwnableRoles' bit for `_ROLE_n`.

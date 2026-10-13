@@ -43,7 +43,7 @@ rehearsal and `PostUpgrade`:
 | The proxy runs what the book records | ✓ | | `liveImplementation(name) == Env.implementation(name)` |
 | Nothing is staged yet | ✓ | | `!Env.hasStaged(name)` |
 | The operation is not already in the timelock | ✓ | | `operationState(operationId(calls, predecessor, salt)) == OPERATION_UNSET` |
-| Governance is as the book declares: owner is the timelock, the authority holds the admin role | ✓ | ✓ | `governedAsDeclared(target)`; `IOwnableRolesView(target).hasAllRoles(who, soladyRole(n))` for other roles; `holdsNoRoles(target, timelock())` |
+| Governance is as the book declares: owner is the timelock, and the authority holds the admin role where the book declares one (`contracts.<name>.adminRole`) | ✓ | ✓ | `governedAsDeclared("exchange")` by name, reading the book's declaration (a contract declared owner-governed only, the Router, passes on its owner); `governedAsDeclared(target)` by address demands the role; `IOwnableRolesView(target).hasAllRoles(who, soladyRole(n))` for other roles; `holdsNoRoles(target, timelock())` |
 | The new implementation has code, is UUPS, and nobody can initialize it | ✓ | | `implementationSane(impl) == ""` (or the pieces: `isUUPS`, `initializersDisabled`, `soladyInitializersDisabled`, `ozInitializersDisabled`) |
 | Its constructor immutables and constants match the live ones | ✓ | | `sameAnswers(proxy, impl, getters) == getters.length`, one `abi.encodeWithSignature` per getter; assert the one that is meant to differ separately |
 | Storage the upgrade must not touch | snapshot | compare | `snapshot(target, firstSlots(n))`, `firstChangedSlot(target, slots, before) == slots.length` — in one test when the test applies the plan itself; across runs, assert the values the book implies |
@@ -113,7 +113,7 @@ applyAsAuthority(calls, bytes32(0), salt);
 assertEq(operationState(id), OPERATION_DONE);
 assertEq(liveImplementation("exchange"), Env.staged("exchange"));
 assertEq(firstChangedSlot(proxy, slots, before), slots.length, "raw storage changed");
-assertTrue(governedAsDeclared(proxy));
+assertTrue(governedAsDeclared("exchange"));
 assertTrue(reverts(proxy, abi.encodeWithSignature("initialize(address,address)", address(1), address(2))));
 ```
 
